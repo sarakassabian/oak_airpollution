@@ -1,0 +1,811 @@
+---
+title: "Pollution data"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(lubridate)
+library(DT)
+library(sf)
+```
+
+```{r}
+headers <- c(
+
+  "2016-Jan-Apr",
+  "2016-May-Aug",
+  "2016-Sep-Dec",
+  "2017-Jan-Apr",
+  "2017-May-Aug",
+  "2017-Sep-Dec",
+  "2018-Jan-Apr",
+  "2018-May-Aug",
+  "2018-Sep-Dec"
+)
+```
+
+# Define AQI groups by air quality 
+
+```{r}
+AQI_names <- c("Good", "Moderate", "Unhealthy for Sensitive Groups", "Unhealthy", "Very Unhealthy")
+```
+
+# OZONE DATA
+## Ozone 2016 Data 
+```{r}
+# Define site IDs: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_oz_16 <- read_csv(
+  "data/ozone_2016.csv"
+  )%>% 
+
+# Filter by site ID   
+filter(`Site ID` %in% site_ids) %>% 
+
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")
+         ) %>% 
+  
+## filtering by date 01/01/16 - 04/30/16
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2016-01-01" & Date <= "2016-04-30" ~ "Jan-Apr",
+   Date >= "2016-05-01" & Date <= "2016-08-31" ~ "May-Aug",
+   Date >= "2016-09-01" & Date <= "2016-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+  
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_oz_16
+```
+# Add a pivot table for ozone 2016 data
+```{r}
+oak_oz_16 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# Ozone 2017 data
+## Filter by site 
+```{r}
+## Define site IDs: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_oz_17 <- read_csv(
+  "data/ozone_2017.csv"
+  ) %>% 
+
+## Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+
+## Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+## create a year column
+  mutate(year = format(Date, "%Y")
+         ) %>% 
+    
+## filtering by date 01/01/17 - 04/30/17
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2017-01-01" & Date <= "2017-04-30" ~ "Jan-Apr",
+   Date >= "2017-05-01" & Date <= "2017-08-31" ~ "May-Aug",
+   Date >= "2017-09-01" & Date <= "2017-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )  
+oak_oz_17
+```
+## Create a pivot table
+```{r}
+oak_oz_17 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# Ozone 2018 Data
+## Filter by site 
+```{r}
+## Define SiteIDs: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_oz_18 <- read_csv(
+  "data/ozone_2018.csv"
+  ) %>% 
+  
+## Create SiteID filter
+filter(`Site ID` %in% site_ids) %>% 
+
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+    
+# create a year column
+mutate(year = format(Date, "%Y")
+       ) %>% 
+  
+## filtering by date 01/01/18 - 04/30/18
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2018-01-01" & Date <= "2018-04-30" ~ "Jan-Apr",
+   Date >= "2018-05-01" & Date <= "2018-08-31" ~ "May-Aug",
+   Date >= "2018-09-01" & Date <= "2018-12-31" ~ "Sept-Dec",
+   )
+   ) %>%
+    
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_oz_18
+```
+## Create a pivot table 
+```{r}
+oak_oz_18 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+# Ozone 2019 Data
+## Filter by site 
+```{r}
+# Define SiteID: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_oz_19 <- read_csv(
+  "data/ozone_2019.csv"
+  )%>% 
+  
+# Filter by siteID 
+  filter(`Site ID` %in% site_ids) %>% 
+
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")
+         ) %>% 
+  
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2019-01-01" & Date <= "2019-04-30" ~ "Jan-Apr",
+   Date >= "2019-05-01" & Date <= "2019-08-31" ~ "May-Aug",
+   Date >= "2019-09-01" & Date <= "2019-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_oz_19
+```
+## Create a pivot table
+```{r}
+oak_oz_19 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+#PM DATA
+##PM 2016 Data
+```{r}
+# Define Site IDs: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_pm_16 <- read_csv(
+  "data/PM25_2016.csv"
+  ) %>% 
+
+## Filter by SiteID 
+  
+filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>%
+  
+# create a year column
+  mutate(year = format(Date, "%Y")
+         ) %>% 
+
+## filtering by date 01/01/16 - 04/30/16
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2016-01-01" & Date <= "2016-04-30" ~ "Jan-Apr",
+   Date >= "2016-05-01" & Date <= "2016-08-31" ~ "May-Aug",
+   Date >= "2016-09-01" & Date <= "2016-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_pm_16
+```
+## Create a pivot table 
+```{r}
+oak_pm_16 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# PM2.5 2017 Data
+## All the coding for PM2.5 2017 data 
+```{r}
+## Define site IDs: oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+
+## Read CSV 
+
+oak_pm_17 <- read_csv(
+  "data/PM25_2017.csv"
+  ) %>% 
+
+## Filter by SiteID
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>%
+  
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/17 - 04/30/17
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2017-01-01" & Date <= "2017-04-30" ~ "Jan-Apr",
+   Date >= "2017-05-01" & Date <= "2017-08-31" ~ "May-Aug",
+   Date >= "2017-09-01" & Date <= "2017-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+  
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_pm_17
+```
+## Create a pivot table based on PM 2017 data
+```{r}
+oak_pm_17 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# PM2.5 2018
+## All the programming for PM2.5 2018
+```{r}
+# Define site IDs for oakland, oakland west, laney
+site_ids <- c("060010009", "060010011", "060010012")
+oak_pm_18 <- read_csv(
+  "data/PM25_2018.csv"
+  ) %>% 
+  
+## Filter by SiteID
+filter(`Site ID` %in% site_ids) %>% 
+
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>%
+  
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+  
+## filtering by date 01/01/18 - 04/30/18
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2018-01-01" & Date <= "2018-04-30" ~ "Jan-Apr",
+   Date >= "2018-05-01" & Date <= "2018-08-31" ~ "May-Aug",
+   Date >= "2018-09-01" & Date <= "2018-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+
+oak_pm_18
+```
+
+## Create a pivot table based on PM 2018 data
+```{r}
+oak_pm_18 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# PM2.5 2019 Data
+## All the programming in one for PM 2019 
+```{r}
+# Define site IDs: oakland, oakland west, laney
+
+site_ids <- c("060010009", "060010011", "060010012")
+oak_pm_19 <- read_csv(
+  "data/PM25_2019.csv"
+  ) %>% 
+
+# Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2019-01-01" & Date <= "2019-04-30" ~ "Jan-Apr",
+   Date >= "2019-05-01" & Date <= "2019-08-31" ~ "May-Aug",
+   Date >= "2019-09-01" & Date <= "2019-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_pm_19
+```
+
+## Create a pivot table 
+```{r}
+oak_pm_19 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# NO2 2016 Data
+## All the programming in one for NO2 2016
+```{r}
+# Define site IDs: oakland, oakland west, laney
+
+site_ids <- c("060010009", "060010011", "060010012")
+oak_no_16 <- read_csv(
+  "data/NO2_2016.csv"
+  ) %>% 
+
+# Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2016-01-01" & Date <= "2016-04-30" ~ "Jan-Apr",
+   Date >= "2016-05-01" & Date <= "2016-08-31" ~ "May-Aug",
+   Date >= "2016-09-01" & Date <= "2016-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_no_16
+```
+
+## Create a pivot table 
+```{r}
+oak_no_16 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# NO2 2017 Data
+## All the programming in one for NO2 2017
+```{r}
+# Define site IDs: oakland, oakland west, laney
+
+site_ids <- c("060010009", "060010011", "060010012")
+oak_no_17 <- read_csv(
+  "data/NO2_2017.csv"
+  ) %>% 
+
+# Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2017-01-01" & Date <= "2017-04-30" ~ "Jan-Apr",
+   Date >= "2017-05-01" & Date <= "2017-08-31" ~ "May-Aug",
+   Date >= "2017-09-01" & Date <= "2017-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_no_17
+```
+## Create a pivot table 
+```{r}
+oak_no_17 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# NO2 2018
+## All the programming in one for NO2 2018
+```{r}
+# Define site IDs: oakland, oakland west, laney
+
+site_ids <- c("060010009", "060010011", "060010012")
+oak_no_18 <- read_csv(
+  "data/NO2_2018.csv"
+  ) %>% 
+
+# Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2018-01-01" & Date <= "2018-04-30" ~ "Jan-Apr",
+   Date >= "2018-05-01" & Date <= "2018-08-31" ~ "May-Aug",
+   Date >= "2018-09-01" & Date <= "2018-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_no_18
+```
+## Create a pivot table 
+```{r}
+oak_no_18 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# NO2 2018 data
+## All the programming in one for NO2 2018
+```{r}
+# Define site IDs: oakland, oakland west, laney
+
+site_ids <- c("060010009", "060010011", "060010012")
+oak_no_19 <- read_csv(
+  "data/NO2_2019.csv"
+  ) %>% 
+
+# Filter by site ID   
+  filter(`Site ID` %in% site_ids) %>% 
+  
+# Converting date from string (random characters) to a real date object
+  mutate(Date = 
+    mdy(Date)
+    ) %>% 
+
+# create a year column
+  mutate(year = format(Date, "%Y")) %>% 
+
+## filtering by date 01/01/19 - 04/30/19
+  
+  mutate(Date_Grp = case_when(
+   Date >= "2019-01-01" & Date <= "2019-04-30" ~ "Jan-Apr",
+   Date >= "2019-05-01" & Date <= "2019-08-31" ~ "May-Aug",
+   Date >= "2019-09-01" & Date <= "2019-12-31" ~ "Sept-Dec",
+   )) %>%
+
+## Assign AQI value based on EPA standards 
+
+  mutate(AQI_Grp = case_when(
+    DAILY_AQI_VALUE <= 50 ~ "Good",
+    DAILY_AQI_VALUE >= 51 &  DAILY_AQI_VALUE <= 100 ~ "Moderate",
+    DAILY_AQI_VALUE >= 101 & DAILY_AQI_VALUE <= 150 ~ "Unhealthy for Sensitive Groups",
+    DAILY_AQI_VALUE >= 151 & DAILY_AQI_VALUE <= 200 ~ "Unhealthy",
+    DAILY_AQI_VALUE >= 201 ~ "Very Unhealthy"
+  )) %>% 
+
+## Grouping by year, date, and AQI group and counting number of days by AQI group  
+  group_by(
+  `Site ID`, `Site Name`, `year`, `Date_Grp`, `AQI_Grp`  
+  ) %>% 
+  summarise(
+  "Total" = n()
+  )
+oak_no_19
+```
+
+## Create a pivot table 
+```{r}
+oak_no_19 %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+```
+
+# Merge all the years of the NO2 dataframes
+
+```{r}
+all_no <- bind_rows(oak_no_16, oak_no_17, oak_no_18, oak_no_19) %>% 
+  mutate(pollutant = "no"
+  ) %>%
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+all_no
+```
+
+# Merge all the years of the pm dataframes 
+```{r}
+all_pm <- bind_rows(oak_pm_16, oak_pm_17, oak_pm_18, oak_pm_19) %>% 
+  mutate(pollutant = "pm"
+  ) %>%
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+all_pm
+```
+
+# Merge all the years of the ozone dataframes 
+
+```{r}
+all_oz <- bind_rows(oak_oz_16, oak_oz_17, oak_oz_18, oak_oz_19) %>% 
+  mutate(pollutant = "ozone"
+  ) %>% 
+  pivot_wider(
+    names_from = AQI_Grp,
+    values_from = Total
+  )
+all_oz
+```
+
+# Smush the dataframes today 
+
+```{r}
+all_pollutants <- bind_rows (all_pm, all_oz, all_no) 
+all_pollutants
+```
+
+## Totals for the dataframes 
+
+```{r}
+sum(all_pollutants$Good)
+```
+
+# Stats for story
+
+```{r}
+colSums(Filter(is.numeric, all_pollutants), na.rm = TRUE)
+```
+
+# Can edit the group_by statement to see different cuts of the data, summed up
+
+```{r}
+all_pollutants %>%
+  group_by(
+    `Site Name`, `pollutant` 
+  ) %>% 
+  summarise_at(
+    AQI_names, sum, na.rm = TRUE
+  ) %>% 
+  
+## Sum all the rows that are numeric 
+  mutate(total = rowSums(across(where(is.numeric))))
+```
+
+# Group by year 
+```{r}
+all_pollutants %>%
+  group_by(
+    `year`
+  ) %>% 
+  summarise_at(
+    AQI_names, sum, na.rm = TRUE
+  ) %>% 
+  
+## Sum all the rows that are numeric 
+  mutate(total = rowSums(across(where(is.numeric))))
+```
+
