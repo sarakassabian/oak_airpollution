@@ -1,0 +1,206 @@
+--
+title: "All asthma-pollution data"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(lubridate)
+library(DT)
+library(sf)
+```
+
+## Note about this asthma data vs original asthma data
+### The data that Matt sent is from the same dataset that I used for 2016-2018.  The difference is the counts that he pulled were for Asthma in the primary diagnosis position only for ED data or hospitalizations.  After checking the notes in the file he sent you, I noticed that your request was for Asthma in all diagnosis positions.  So, if Asthma was coded in any of the 25 diagnosis positions for either ED data or hospitalizations, it was included in the counts that I provided to you.  A way to think of it is that selecting for Asthma in the primary diagnosis positions captures the most severe asthma cases.  But selecting for Asthma in any of the 25 diagnosis positions may provide a more complete picture for individuals affected by asthma. -Elaine, epi
+
+
+## Import and format headers
+
+```{r import}
+headers <- c(
+  "zipcode_or_region",
+  "2016-Jan-Apr",
+  "2016-May-Aug",
+  "2016-Sep-Dec",
+  "2017-Jan-Apr",
+  "2017-May-Aug",
+  "2017-Sep-Dec",
+  "2018-Jan-Apr",
+  "2018-May-Aug",
+  "2018-Sep-Dec",
+  "2019-Jan-Apr",
+  "2019-May-Aug",
+  "2019-Sep-Dec"
+)
+
+asthma_oak <- read_excel(
+  "data/asthma_final1.xlsx", 
+  sheet = " ED & PD summary new", 
+  skip = 4,
+  col_names = headers)
+asthma_oak
+```
+
+## Create new variable for just asthma_oak zip codes
+### Filter out the Alameda County and OEP aggregate values 
+
+```{r}
+asthma_oak_zip <- asthma_oak %>% 
+  filter(zipcode_or_region != "Alameda County") %>% 
+  filter (zipcode_or_region != "Oakland & Emeryville & Piedmont")
+```
+
+
+## Import geoJSON file of zip code boundaries
+### Assign a new variable from the geoJSON data
+
+```{r}
+geo_zipcode <- st_read(
+  "data/Zip_Code_Boundaries.json"
+)
+geo_zipcode
+```
+## Filter out the Mills College zip code from geo_zipcode dataframe
+
+```{r}
+geo_zipcode_rm_mills <- geo_zipcode %>% 
+  filter(ZIP_CODE != "94605") %>% 
+  filter(ZIP_CODE != "94613")
+```
+
+## Join zip codes to make one 
+
+```{r}
+geo_zipcode_join_zips <- geo_zipcode %>% 
+  filter(ZIP_CODE == "94605" | ZIP_CODE == "94613")
+```
+
+## Full join of zip codes 
+```{r}
+join_wo_mills <- asthma_oak_zip %>% 
+  inner_join(
+    geo_zipcode_rm_mills, by = c(
+      "zipcode_or_region" = "ZIP_CODE"
+    )
+  )
+```
+
+## Filter out asthma_oak_zip dataframe to just Mills zipcodes
+```{r}
+asthma_oak_zip_just_mills <- asthma_oak_zip %>% 
+ filter(zipcode_or_region == "94605 & 94613")
+```
+
+## Create the shape that unites 94605 and 94613 zip codes together
+## Stick that shape back 
+
+```{r}
+mills_geometry <- st_sfc(st_union(geo_zipcode_join_zips))
+```
+
+## Join the asthma_oak_zip data that includes just Mills zip codes with the shape that unites 94605 and 94613 geometries together 
+```{r}
+join_w_mills <- merge(asthma_oak_zip_just_mills, mills_geometry)
+join_w_mills
+```
+
+## Create final dataset by binding Mills and non-Mills together and explaining to R that the geometry column means creating a shape 
+```{r}
+asthma_oak_geo <- st_as_sf(bind_rows(join_wo_mills, join_w_mills))
+asthma_oak_geo
+```
+
+# Story stats
+## Total asthma visits by zip code for all years 
+
+```{r}
+#tail(headers, -1)
+## (`2016-Jan-Apr`: `2019-Sep-Dec`)
+asthma_oak_geo <- asthma_oak_geo %>% 
+  mutate_at(vars(tail(headers, -1)), as.numeric) %>%
+  mutate_if(is.numeric , replace_na, replace = 0) %>% 
+  rowwise() %>% 
+    mutate(
+        total_asthma_visits = sum(
+            c(`2016-Jan-Apr`, `2016-May-Aug`, `2016-Sep-Dec`, `2017-Jan-Apr`, `2017-May-Aug`, `2017-Sep-Dec`, `2018-Jan-Apr`, `2018-May-Aug`, `2018-Sep-Dec`, `2019-Jan-Apr`, `2019-May-Aug`, `2019-Sep-Dec`)
+        )
+    )
+
+##asthma_oak_geo$total <- asthma_oak_geo$`2016-Jan-Apr`+ asthma_oak_geo$`2016-May-Aug`
+asthma_oak_geo
+```
+```{r}
+total_asthma_visits_all_zips <- sum(asthma_oak_geo$total_asthma_visits, na.rm = TRUE)
+total_asthma_visits_all_zips
+```
+
+```{r}
+asthma_oak_percents <- asthma_oak_geo %>% 
+  rowwise() %>% 
+  mutate(
+    percent_of_all_asthma_visits = total_asthma_visits/total_asthma_visits_all_zips
+  )
+asthma_oak_percents
+```
+## More story math 
+### This is where the data came from: https://docs.google.com/spreadsheets/d/11ZXtf6EJ58ULX6ll4P1Po4Gh_MdV5Rmh_WK3ld_W4eI/edit?usp=sharing
+
+```{r}
+oak_acs_data <- read_csv(
+  "Data/oak_census_pop.csv"
+  ) %>% 
+  filter(
+    name != "Oakland, CA" 
+  ) %>% 
+  filter(
+    name != "94605"
+  ) %>% 
+  filter(
+    name != "94613"
+  ) %>% 
+  select(name, total_population, total_child_population, pct_child_of_population)
+oak_acs_data
+```
+## More details here
+
+
+
+```{r}
+asthma_oak_percents %>% 
+  inner_join(
+   oak_acs_data, by = c(
+      "zipcode_or_region" = "name"
+    )
+  ) %>% 
+  st_drop_geometry() %>% 
+  select(zipcode_or_region, total_population, total_asthma_visits, percent_of_all_asthma_visits, total_child_population, pct_child_of_population) %>% 
+  mutate(
+    percent_asthma_visits_by_child_pop = total_asthma_visits/total_child_population,
+    percent_asthma_by_total_pop = total_asthma_visits/total_population
+  ) %>% 
+  arrange(desc(percent_asthma_visits_by_child_pop))
+```
+
+
+
+
+
+
+
+
+
+## Visualizing the data
+
+```{r}
+plot(
+  asthma_oak_geo["2018-May-Aug"], 
+  col = sf.colors(
+    10, 
+    categorical = FALSE,
+  )
+)
+```
+
+

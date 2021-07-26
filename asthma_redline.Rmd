@@ -1,0 +1,142 @@
+--
+title: "Asthma and redlining data"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(lubridate)
+library(DT)
+library(sf)
+```
+
+## Import asthma data and format headers 
+
+```{r import}
+headers <- c(
+  "zipcode_or_region",
+  "2016-Jan-Apr",
+  "2016-May-Aug",
+  "2016-Sep-Dec",
+  "2017-Jan-Apr",
+  "2017-May-Aug",
+  "2017-Sep-Dec",
+  "2018-Jan-Apr",
+  "2018-May-Aug",
+  "2018-Sep-Dec",
+  "2019-Jan-Apr",
+  "2019-May-Aug",
+  "2019-Sep-Dec"
+)
+
+asthma_oak <- read_excel(
+  "data/asthma_final1.xlsx", 
+  sheet = " ED & PD summary new", 
+  skip = 4,
+  col_names = headers)
+asthma_oak
+```
+
+## Create new variable for just asthma_oak zip codes
+### Filter out the Alameda County and OEP aggregate values 
+
+```{r}
+asthma_oak_zip <- asthma_oak %>% 
+  filter(zipcode_or_region != "Alameda County") %>% 
+  filter (zipcode_or_region != "Oakland & Emeryville & Piedmont")
+```
+
+## Import geoJSON file of zip code boundaries
+### Assign a new variable from the geoJSON data
+
+```{r}
+geo_zipcode <- st_read(
+  "data/Zip_Code_Boundaries.json"
+)
+geo_zipcode
+```
+
+## Filter out the Mills College zip code from geo_zipcode dataframe
+
+```{r}
+geo_zipcode_rm_mills <- geo_zipcode %>% 
+  filter(ZIP_CODE != "94605") %>% 
+  filter(ZIP_CODE != "94613")
+```
+
+## Join zip codes to make one 
+
+```{r}
+geo_zipcode_join_zips <- geo_zipcode %>% 
+  filter(ZIP_CODE == "94605" | ZIP_CODE == "94613")
+```
+
+## Full join of zip codes 
+
+```{r}
+join_wo_mills <- asthma_oak_zip %>% 
+  inner_join(
+    geo_zipcode_rm_mills, by = c(
+      "zipcode_or_region" = "ZIP_CODE"
+    )
+  )
+```
+
+## Filter out asthma_oak_zip dataframe to just Mills zipcodes
+```{r}
+asthma_oak_zip_just_mills <- asthma_oak_zip %>% 
+ filter(zipcode_or_region == "94605 & 94613")
+```
+
+## Create the shape that unites 94605 and 94613 zip codes together
+## Stick that shape back 
+
+```{r}
+mills_geometry <- st_sfc(st_union(geo_zipcode_join_zips))
+```
+
+## Join the asthma_oak_zip data that includes just Mills zip codes with the shape that unites 94605 and 94613 geometries together 
+```{r}
+join_w_mills <- merge(asthma_oak_zip_just_mills, mills_geometry)
+join_w_mills
+```
+
+## Create final dataset by binding Mills and non-Mills together and explaining to R that the geometry column means creating a shape 
+```{r}
+asthma_oak_geo <- st_as_sf(bind_rows(join_wo_mills, join_w_mills),
+                           crs = 4326)
+asthma_oak_geo
+```
+
+## Import geoJSON file of redline data
+### Assign a new variable from the geoJSON redline data
+
+```{r}
+geo_redline <- read_sf(
+  "data/redline/CAOakland1937.geojson"
+)
+geo_redline
+```
+
+# Analysis
+## Is there a way to join geo_zipcode and geo_redline data and then plot?
+### Which redlined neighborhoods appear in which zip codes? Are the areas with the highest amount of asthma cases in formerly redlined neighborhoods? 
+
+## Does the geometry column value of geo_redline intersect with asthma_oak_geo, if so, smush them together
+```{r}
+geo_redline_zip <- st_join(geo_redline, asthma_oak_geo, join = st_intersects)
+geo_redline_zip
+```
+
+## Look at C and D areas to see trends in redlining 
+```{r}
+cols <- c("zipcode_or_region", "holc_grade")
+geo_redline_zip %>%
+  group_by(across(all_of(cols))) %>% 
+  summarize(total_grade = n()) %>%
+  arrange(zipcode_or_region, desc(total_grade)) %>% 
+  filter(zipcode_or_region == "94621")
+```
+
