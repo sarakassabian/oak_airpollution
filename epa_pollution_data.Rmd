@@ -2,6 +2,9 @@
 title: "Pollution data"
 output: html_notebook
 ---
+# Set-up
+
+## Add relevant libraries 
 
 ```{r setup}
 library(tidyverse)
@@ -11,6 +14,8 @@ library(lubridate)
 library(DT)
 library(sf)
 ```
+
+## Add headers 
 
 ```{r}
 headers <- c(
@@ -27,7 +32,8 @@ headers <- c(
 )
 ```
 
-# Define AQI groups by air quality 
+# Define AQI groups by air quality
+## AQI runs from 0-500. The higher the AQI number is, the more pollution is in the air which can lead to health concerns. Each level of concern corresponds to an AQI value. 
 
 ```{r}
 AQI_names <- c("Good", "Moderate", "Unhealthy for Sensitive Groups", "Unhealthy", "Very Unhealthy")
@@ -261,6 +267,7 @@ oak_oz_19 %>%
   )
 ```
 #PM DATA
+
 ##PM 2016 Data
 ```{r}
 # Define Site IDs: oakland, oakland west, laney
